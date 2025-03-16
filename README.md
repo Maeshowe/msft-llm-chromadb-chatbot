@@ -14,7 +14,7 @@ Ez a projekt egy helyben futtatható, dokumentum-alapú chatbotot valósít meg,
 ## 📂 Projektstruktúra
 
 ```
-LLM-MSFT
+msft-llm-chromadb-chatbot
 │
 ├── chat.py                  # CLI-alapú chatbot
 ├── process.py               # Dokumentumok feldolgozása
@@ -33,7 +33,7 @@ LLM-MSFT
 
 ```bash
 git clone <repo_url>
-cd LLM-MSFT
+cd msft-llm-chromadb-chatbot
 ```
 
 ### 2. Virtuális környezet létrehozása
@@ -79,6 +79,13 @@ streamlit run streamlit_app.py --server.fileWatcherType none
 Ezután nyisd meg a böngésződben a megadott helyi URL-t (általában: `http://localhost:8501`).
 
 ---
+## 📊 Dashboard (beta) webes felület futtatása
+
+```bash
+streamlit run streamlit run dashboard.py
+streamlit run streamlit run log_checker.py
+
+```
 
 ## 📂 Logok
 
@@ -94,6 +101,7 @@ A rendszer részletesen logolja a műveleteket a `logs` mappában.
 
 - Ellenőrizd a logokat a `logs` mappában, ha problémát tapasztalsz.
 - Ügyelj arra, hogy a környezeted Python 3.12 alatt fusson a maximális kompatibilitás érdekében.
+- a chain type egyelőre eltér a chat.py (config.yaml-ban állítható), a streamlit_app.py-ban a kódban van
 
 ## 📌 Következő fejlesztési lépések
 
