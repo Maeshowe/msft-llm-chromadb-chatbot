@@ -12,3 +12,5 @@ PyYAML
 pandas
 tqdm
 streamlit
+matplotlib
+seaborn

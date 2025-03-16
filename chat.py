@@ -5,8 +5,9 @@ import time
 from langchain_community.llms import LlamaCpp
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
-from langchain.chains import RetrievalQA
+from langchain.chains import RetrievalQA, ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
+from tqdm import tqdm
 
 with open('config.yaml', 'r', encoding='utf-8') as f:
     config = yaml.safe_load(f)
@@ -44,35 +45,62 @@ prompt = PromptTemplate(
     template=config['prompt']['template']
 )
 
-qa_chain = RetrievalQA.from_chain_type(
-    llm,
-    chain_type="stuff",
-    retriever=retriever,
-    return_source_documents=True,
-    chain_type_kwargs={"prompt": prompt}
-)
+chain_type = config["chain"]["type"]
 
-print("🚀 Chatbot elindult (kilépés: 'exit')")
+if chain_type == "retrieval_qa":
+    chain = RetrievalQA.from_chain_type(
+        llm,
+        chain_type="stuff",
+        retriever=retriever,
+        return_source_documents=True,
+        chain_type_kwargs={"prompt": prompt}
+    )
+elif chain_type == "conversational":
+    chain = ConversationalRetrievalChain.from_llm(
+        llm=llm,
+        retriever=retriever,
+        combine_docs_chain_kwargs={"prompt": prompt},
+        return_source_documents=True,
+    )
+else:
+    raise ValueError("Nem támogatott lánctípus van megadva a konfigurációban!")
+
+print(f"🚀 Chatbot elindult [{config['chain']['type']}] (kilépés: 'exit')")
+
+chat_history = []
 
 while True:
     query = input("\n👉 Kérdésed: ")
-    if query.lower() in ['exit', 'quit']:
+    if query.lower() in ('exit', 'quit'):
         break
 
-    start_time = time.time()  # ✅ hiányzó definíció hozzáadva
-    result = qa_chain.invoke(query)
-    inference_time = time.time() - start_time
+    with tqdm(total=1, desc="Válasz generálása") as pbar:
+        start_time = time.time()
 
-    response = result['result']
-    sources = [doc.metadata.get('source', 'n/a') for doc in result['source_documents']]
+        if config["chain"]["type"] == "retrieval_qa":
+            result = chain.invoke(query)
+            response = result['result']
+            sources = [doc.metadata.get('source', 'n/a') for doc in result['source_documents']]
+        else:  # conversational
+            result = chain.invoke({"question": query, "chat_history": chat_history})
+            response = result['answer']
+            sources = [doc.metadata.get('source', 'n/a') for doc in result.get('source_documents', [])]
 
-    if not sources:
-        logging.warning(f"Nincs találat: {query}")
+        inference_time = time.time() - start_time
+        pbar.update(1)
+
+    if sources:
+        response_with_sources = f"{response}\n📚 Forrás(ok): {', '.join(set(sources))}"
+    else:
+        response += "\n(Nincs elérhető forrás.)"
+
+    print(f"\n🤖 Válasz: {response}")
+    if sources:
+        print(f"📚 Forrás(ok): {', '.join(set(sources))}")
+
+    chat_history.append((query, response))
 
     logging.info(f"Kérdés: {query}")
     logging.info(f"Válasz: {response}")
-    logging.info(f"Források: {sources}")
+    logging.info(f"Források: {sources if sources else 'Nincs forrás'}")
     logging.info(f"Inferencia idő: {inference_time:.2f}s")
-
-    print(f"\n🤖 Válasz: {response}")
-    print(f"📚 Forrás(ok): {', '.join(set(sources))}")

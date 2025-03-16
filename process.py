@@ -10,6 +10,10 @@ from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from tqdm import tqdm
 
+# GPU kikapcsolása (Apple Silicon)
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+os.environ["PYTORCH_NO_MPS"] = "1"
+
 # Konfiguráció betöltése
 with open('config.yaml', 'r', encoding='utf-8') as f:
     config = yaml.safe_load(f)
@@ -32,6 +36,8 @@ logging.info("🔄 Dokumentum feldolgozás elkezdődött.")
 
 documents = []
 start_time_total = time.time()
+
+# Dokumentumok betöltése progress bar-ral
 for root, dirs, files in os.walk(docs_path):
     for file in tqdm(files, desc="Dokumentumok betöltése"):
         start_time = time.time()
@@ -52,14 +58,24 @@ for root, dirs, files in os.walk(docs_path):
         logging.info(f"📄 Betöltve: {file} | Dokumentumok: {len(loaded_docs)} | Idő: {elapsed:.2f} s")
         documents.extend(loaded_docs)
 
+# Dokumentumok darabolása
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-splitted_docs = text_splitter.split_documents(documents)
+splitted_docs = []
+for doc in tqdm(documents, desc="Dokumentumok darabolása"):
+    splitted_docs.extend(text_splitter.split_documents([doc]))
 
-logging.info(f"🔄 {len(splitted_docs)} dokumentumrészlet generálva, embeddingelés kezdődik...")
-start_embedding_time = time.time()
-Chroma.from_documents(splitted_docs, embeddings, persist_directory=vectorstore_path)
-embedding_duration = time.time() - start_embedding_time  # Ez a sor volt a hibás
+logging.info(f"🔄 {len(splitted_docs)} dokumentumrészlet generálva, embeddingelés kezdődik.")
 
-logging.info(f"✅ Embeddingek elkészültek ({embedding_duration:.2f} másodperc).")
-logging.info(f"✅ Teljes folyamat idő: {time.time() - start_time_total:.2f} másodperc.")
-print("✅ Dokumentumok feldolgozva, embeddingek létrehozva és elmentve.")
+# Embeddingek generálása és ChromaDB feltöltése
+start_time_embed = time.time()
+db = Chroma.from_documents(
+    tqdm(splitted_docs, desc="Embeddingek generálása"),
+    embeddings,
+    persist_directory=vectorstore_path
+)
+embedding_time = time.time() - start_time_total
+
+logging.info(f"✅ Embeddingek generálva és ChromaDB-be mentve ({embedding_time:.2f} másodperc).")
+logging.info(f"✅ Teljes feldolgozási idő: {time.time() - start_time_total:.2f} másodperc.")
+
+print("✅ Dokumentumok sikeresen feldolgozva és embeddingek elmentve.")
